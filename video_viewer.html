@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Frame-by-Frame Viewer</title>
+    <!-- 
+      This app is designed for mobile, especially iOS. 
+      - `width=device-width, initial-scale=1.0` is standard for responsive design.
+      - `maximum-scale=1.0, user-scalable=no` prevents annoying double-tap to zoom, 
+        which can interfere with the tap controls.
+    -->
+
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Styles -->
+    <style>
+        /* Base styles for a dark-mode, mobile-first app */
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            /* Prevent scrolling on the body */
+            overflow: hidden;
+        }
+
+        /* Custom styling for the range input (seek bar) */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            outline: none;
+            transition: background 0.2s ease;
+            cursor: pointer;
+        }
+
+        input[type=range]:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* WebKit (Chrome, Safari) thumb */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #3b82f6; /* bg-blue-600 */
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            margin-top: -6px; /* Center thumb vertically */
+        }
+
+        /* Firefox thumb */
+        input[type=range]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #3b82f6; /* bg-blue-600 */
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        /* Style for the custom file input */
+        .file-input-label {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            background-color: #3b82f6; /* bg-blue-600 */
+            color: white;
+            border-radius: 0.5rem; /* rounded-lg */
+            font-weight: 600; /* font-semibold */
+            transition: background-color 0.2s;
+        }
+        .file-input-label:hover {
+            background-color: #2563eb; /* bg-blue-700 */
+        }
+        .file-input-label svg {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+    <!-- 
+      Main App Container.
+      This will house either the "Select Video" prompt or the video player.
+    -->
+    <main class="w-full h-full max-w-5xl">
+
+        <!-- 
+          Placeholder shown before a video is loaded.
+          It contains the file input button.
+        -->
+        <div id="video-placeholder" class="flex flex-col items-center justify-center w-full h-full p-8 text-center">
+            <svg class="w-20 h-20 text-gray-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+            <h2 class="text-2xl font-semibold mb-2">Frame-by-Frame Viewer</h2>
+            <p class="text-gray-400 mb-6">Select a video from your device to begin.</p>
+            
+            <!-- 
+              Custom-styled file input. The actual <input> is hidden, 
+              and the <label> acts as the visible button.
+            -->
+            <label for="file-input" class="file-input-label">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                    <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.952 3.029a.75.75 0 0 0 1.092-1.034l-4.25-4.364a.75.75 0 0 0-1.092 0l-4.25 4.364a.75.75 0 0 0 1.092 1.034L9.25 4.636v8.614Z" />
+                    <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5a1.25 1.25 0 0 1-1.25 1.25H4.75A1.25 1.25 0 0 1 3.5 15.25v-2.5Z" />
+                </svg>
+                Select Video
+            </label>
+            <input 
+                type="file" 
+                id="file-input" 
+                class="hidden" 
+                accept="video/*"
+            >
+            <p class="text-xs text-gray-500 mt-4 max-w-xs">Supports common formats like MP4, MOV, and WebM. All processing is done on your device.</p>
+        </div>
+
+        <!-- 
+          Video Player Container.
+          This is hidden by default and becomes visible when a video is loaded.
+          It's a flex column to stack the video on top of the controls.
+        -->
+        <div id="player-container" class="hidden w-full h-full flex flex-col bg-black">
+            
+            <!-- 
+              Video Wrapper: This holds the <video> element and the tap overlay.
+              'relative' is key for placing the overlay on top.
+              'flex-1' makes it take up all available space, pushing controls down.
+              'min-h-0' is a flexbox trick to prevent overflow.
+            -->
+            <div class="relative w-full flex-1 min-h-0">
+                <video 
+                    id="video" 
+                    class="w-full h-full object-contain"
+                    playsinline
+                    preload="metadata"
+                ></video>
+
+                <!-- 
+                  Controls Overlay: This is the magic for the tap controls.
+                  It sits on top of the video, is transparent, and split into 3 sections.
+                -->
+                <div id="controls-overlay" class="absolute inset-0 z-10 flex">
+                    <!-- 
+                      Left 1/3: Tap to go back one frame.
+                      We use 'flex-1' on all 3 sections to divide the space equally.
+                    -->
+                    <div id="prev-frame-tap" class="flex-1 h-full cursor-pointer"></div>
+                    
+                    <!-- Center 1/3: Tap to play/pause. -->
+                    <div id="play-pause-tap" class="flex-1 h-full cursor-pointer"></div>
+                    
+                    <!-- Right 1/3: Tap to go forward one frame. -->
+                    <div id="next-frame-tap" class="flex-1 h-full cursor-pointer"></div>
+                </div>
+            </div>
+
+            <!-- 
+              Control Bar: This holds the "persistent" controls.
+              'z-20' keeps it on top of the overlay (though they don't overlap).
+            -->
+            <div id="control-bar" class="w-full p-3 bg-gray-900/80 backdrop-blur-sm z-20">
+                <!-- Top Row: Seek Bar and Time -->
+                <div class="flex items-center gap-3 mb-2">
+                    <input type="range" id="seek-bar" class="flex-1" value="0" min="0" step="0.01">
+                    <div id="time-display" class="text-sm font-mono whitespace-nowrap">
+                        00:00 / 00:00
+                    </div>
+                </div>
+                
+                <!-- Bottom Row: Buttons and Speed Select -->
+                <div class="flex items-center justify-between gap-3">
+                    <button id="play-pause-btn" class="p-2 rounded-full text-white hover:bg-white/20 transition-colors">
+                        <!-- Play Icon -->
+                        <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                            <path fill-rule="evenodd" d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm6.39-2.908a.75.75 0 0 1 .766.027l3.5 2.25a.75.75 0 0 1 0 1.262l-3.5 2.25A.75.75 0 0 1 8 12.25v-4.5a.75.75 0 0 1 .39-.658Z" clip-rule="evenodd" />
+                        </svg>
+                        <!-- Pause Icon (hidden by default) -->
+                        <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 hidden">
+                            <path fill-rule="evenodd" d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm5-2.25A.75.75 0 0 1 7.75 7h.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-.5a.75.75 0 0 1-.75-.75v-4.5Zm4 0a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-.5a.75.75 0 0 1-.75-.75v-4.5Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    
+                    <button id="prev-frame-btn" class="p-2 rounded-full text-white hover:bg-white/20 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                            <path fill-rule="evenodd" d="M15.707 15.707a1 1 0 0 1-1.414 0L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414l5-5a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414ZM8.707 8.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 1.414-1.414L8 6.586l4.293-4.293a1 1 0 1 1 1.414 1.414l-5 5Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <button id="next-frame-btn" class="p-2 rounded-full text-white hover:bg-white/20 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414l-5 5a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414Zm0 6a1 1 0 0 1 1.414 0L10 14.586l4.293-4.293a1 1 0 1 1 1.414 1.414l-5 5a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    
+                    <div class="flex-1"></div> <!-- Spacer -->
+                    
+                    <select id="speed-select" class="bg-gray-800 text-white text-sm rounded-md px-2 py-2 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="1.75">1.75x</option>
+                        <option value="2">2x</option>
+                    </select>
+                    
+                    <button id="fullscreen-btn" class="p-2 rounded-full text-white hover:bg-white/20 transition-colors">
+                        <!-- Enter Fullscreen Icon -->
+                        <svg id="fs-enter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                            <path d="M3 8.25V3.75A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 0 1.5h-3v3a.75.75 0 0 1-1.5 0ZM11.75 3a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-3h-3a.75.75 0 0 1 0-1.5h4.5ZM8.25 17a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 1 1.5 0v3h3a.75.75 0 0 1 0 1.5h-4.5ZM17 11.75a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1 0-1.5h3v-3a.75.75 0 0 1 1.5 0v4.5Z" />
+                        </svg>
+                        <!-- Exit Fullscreen Icon (hidden) -->
+                        <svg id="fs-exit-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 hidden">
+                            <path d="M8.25 3.75A.75.75 0 0 1 9 3h3.75a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V4.5h-3a.75.75 0 0 1-.75-.75ZM3 9a.75.75 0 0 1 .75-.75h3.75a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9h-3a.75.75 0 0 1-.75-.75ZM11 16.25a.75.75 0 0 1 .75-.75h3.75a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0v-0l-3-0a.75.75 0 0 1-.75-.75ZM16.25 11a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-.75.75h-3.75a.75.75 0 0 1 0-1.5h3v-3a.75.75 0 0 1 .75-.75Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get all the DOM elements
+            const fileInput = document.getElementById('file-input');
+            const videoPlaceholder = document.getElementById('video-placeholder');
+            const playerContainer = document.getElementById('player-container');
+            const video = document.getElementById('video');
+
+            // Tap zones
+            const prevFrameTap = document.getElementById('prev-frame-tap');
+            const nextFrameTap = document.getElementById('next-frame-tap');
+            const playPauseTap = document.getElementById('play-pause-tap');
+
+            // Control bar elements
+            const controlBar = document.getElementById('control-bar');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const playIcon = document.getElementById('play-icon');
+            const pauseIcon = document.getElementById('pause-icon');
+            const prevFrameBtn = document.getElementById('prev-frame-btn');
+            const nextFrameBtn = document.getElementById('next-frame-btn');
+            const seekBar = document.getElementById('seek-bar');
+            const timeDisplay = document.getElementById('time-display');
+            const speedSelect = document.getElementById('speed-select');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const fsEnterIcon = document.getElementById('fs-enter-icon');
+            const fsExitIcon = document.getElementById('fs-exit-icon');
+
+            // State variables
+            let lastFrameTime = 0;
+            // Default to 1/30th of a second. This will be updated.
+            let
+             frameDuration = 1 / 30; 
+            let wasPausedBeforeScrub = true;
+
+            // === 1. File Loading ===
+            
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const videoURL = URL.createObjectURL(file);
+                    video.src = videoURL;
+                    
+                    // Show player, hide placeholder
+                    videoPlaceholder.classList.add('hidden');
+                    playerContainer.classList.remove('hidden');
+                    playerContainer.classList.add('flex');
+                }
+            });
+
+            // === 2. Core Video Logic ===
+
+            // Function to get the frame duration.
+            // We use requestVideoFrameCallback, which is the "correct" way to do
+            // frame-perfect operations. It gives us high-res timestamps.
+            const rvfcCallback = (now, metadata) => {
+                if (lastFrameTime > 0) {
+                    // Calculate the duration of the last frame
+                    const duration = metadata.mediaTime - lastFrameTime;
+                    // Only update if it's a reasonable, positive number
+                    if (duration > 0 && duration < 0.1) { 
+                        frameDuration = duration;
+                    }
+                }
+                lastFrameTime = metadata.mediaTime;
+                
+                // Re-register the callback to keep getting updates
+                video.requestVideoFrameCallback(rvfcCallback);
+            };
+
+            video.addEventListener('loadedmetadata', () => {
+                // Set seek bar max value
+                seekBar.max = video.duration;
+                updateTimeDisplay();
+                
+                // Start the frame duration calculation
+                lastFrameTime = 0;
+                if ('requestVideoFrameCallback' in video) {
+                    video.requestVideoFrameCallback(rvfcCallback);
+                }
+            });
+
+            // === 3. Playback Controls ===
+
+            const togglePlay = () => {
+                if (video.paused || video.ended) {
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            };
+            
+            // Update UI on play/pause
+            video.addEventListener('play', () => {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            });
+
+            video.addEventListener('pause', () => {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            });
+            
+            video.addEventListener('ended', () => {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            });
+            
+            // Wire up play/pause buttons
+            playPauseBtn.addEventListener('click', togglePlay);
+            playPauseTap.addEventListener('click', togglePlay);
+
+            // === 4. Frame-by-Frame Controls ===
+
+            const stepFrame = (direction) => {
+                // Stepping frames only makes sense if paused
+                video.pause();
+                
+                // Calculate new time
+                // We add/subtract a tiny bit more than one frame duration 
+                // to ensure we cross a frame boundary.
+                const step = frameDuration * 1.01 * direction;
+                let newTime = video.currentTime + step;
+                
+                // Clamp time between 0 and video duration
+                video.currentTime = Math.max(0, Math.min(video.duration, newTime));
+            };
+            
+            // Wire up frame-step buttons
+            prevFrameTap.addEventListener('click', () => stepFrame(-1));
+            nextFrameTap.addEventListener('click', () => stepFrame(1));
+            
+            prevFrameBtn.addEventListener('click', () => stepFrame(-1));
+            nextFrameBtn.addEventListener('click', () => stepFrame(1));
+
+            // === 5. Seek Bar and Time Display ===
+
+            const formatTime = (timeInSeconds) => {
+                const minutes = Math.floor(timeInSeconds / 60);
+                const seconds = Math.floor(timeInSeconds % 60);
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            };
+
+            const updateTimeDisplay = () => {
+                timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration || 0)}`;
+            };
+
+            video.addEventListener('timeupdate', () => {
+                seekBar.value = video.currentTime;
+                updateTimeDisplay();
+            });
+
+            // Seek bar interaction
+            seekBar.addEventListener('input', () => {
+                video.currentTime = seekBar.value;
+            });
+            
+            // Pause video while scrubbing
+            seekBar.addEventListener('mousedown', () => {
+                wasPausedBeforeScrub = video.paused;
+                video.pause();
+            });
+            
+            // Restore play state after scrubbing
+            seekBar.addEventListener('mouseup', () => {
+                if (!wasPausedBeforeScrub) {
+                    video.play();
+                }
+            });
+            
+            // Add touch support for scrubbing
+            seekBar.addEventListener('touchstart', () => {
+                wasPausedBeforeScrub = video.paused;
+                video.pause();
+            });
+            
+            seekBar.addEventListener('touchend', () => {
+                if (!wasPausedBeforeScrub) {
+                    video.play();
+                }
+            });
+
+
+            // === 6. Playback Speed ===
+
+            speedSelect.addEventListener('change', () => {
+                video.playbackRate = parseFloat(speedSelect.value);
+            });
+
+            // === 7. Fullscreen Mode ===
+
+            const toggleFullscreen = () => {
+                if (!document.fullscreenElement) {
+                    // Request fullscreen on the player container.
+                    // This is the best cross-platform way to keep our custom controls.
+                    // On iPhone, this will fill the browser viewport.
+                    playerContainer.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable fullscreen: ${err.message} (${err.name})`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            };
+            
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+            // Update UI when fullscreen state changes
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    fsEnterIcon.classList.add('hidden');
+                    fsExitIcon.classList.remove('hidden');
+                    playerContainer.classList.add('is-fullscreen'); // Add a class for potential styling
+                } else {
+                    fsEnterIcon.classList.remove('hidden');
+                    fsExitIcon.classList.add('hidden');
+                    playerContainer.classList.remove('is-fullscreen');
+                }
+            });
+
+            // === 8. Prevent default touch behaviors ===
+            // Prevent double-tap zoom on the tap zones
+            const preventDefaultTouch = (e) => {
+                e.preventDefault();
+            };
+            prevFrameTap.addEventListener('touchstart', preventDefaultTouch);
+            prevFrameTap.addEventListener('touchend', preventDefaultTouch);
+            nextFrameTap.addEventListener('touchstart', preventDefaultTouch);
+            nextFrameTap.addEventListener('touchend', preventDefaultTouch);
+            playPauseTap.addEventListener('touchstart', preventDefaultTouch);
+            playPauseTap.addEventListener('touchend', preventDefaultTouch);
+
+            // Prevent page from scrolling when dragging seek bar
+            seekBar.addEventListener('touchmove', (e) => {
+                e.stopPropagation();
+            }, { passive: false });
+
+        });
+    </script>
+
+</body>
+</html>
