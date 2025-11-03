@@ -2,16 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Make sure viewport settings are correct for PWA -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Video Frame Analyzer</title>
-    <!-- PWA Manifest links -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#111827"> <!-- Changed to match gray-900 -->
+    <meta name="theme-color" content="#111827">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <!-- Using Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Using Phosphor Icons for UI -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         /* Custom styles */
@@ -23,12 +19,8 @@
             background-color: #111827; /* Tailwind gray-900 */
             color: #f3f4f6; /* Tailwind gray-100 */
             overflow: hidden; /* Prevent scrolling */
-            /* Prevent text selection on tap-hold */
             user-select: none;
             -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            /* Improve tap responsiveness on touch devices */
             -webkit-tap-highlight-color: transparent;
         }
         
@@ -107,7 +99,7 @@
                 Back to Select
             </button>
             
-            <!-- NEW PLAY/PAUSE BUTTON (Request 2) -->
+            <!-- NEW PLAY/PAUSE BUTTON -->
             <button id="top-play-pause-btn" class="p-2 rounded-full text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                 <i id="top-play-pause-icon" class="ph-play ph-lg"></i>
             </button>
@@ -207,6 +199,7 @@
 
             // --- Show Error Message ---
             function showMessage(message, isError = true) {
+                console.log(isError ? "Error:" : "Message:", message); // Also log to console
                 messageBox.textContent = message;
                 messageBox.className = isError 
                     ? 'p-3 rounded-md bg-red-600 text-white text-center m-3 block' 
@@ -214,7 +207,7 @@
                 messageBox.classList.remove('hidden');
                 setTimeout(() => {
                     messageBox.classList.add('hidden');
-                }, 3000);
+                }, 4000); // Increased time to 4 seconds
             }
 
             // --- UI Navigation ---
@@ -257,16 +250,37 @@
                 updateSecondsPerFrame();
             });
 
-            // --- Control: Play/Pause ---
+            // --- CRITICAL CHANGE: Control: Play/Pause with Error Catching ---
             function togglePlayPause() {
+                console.log("togglePlayPause() called. Video paused:", video.paused);
                 if (video.paused || video.ended) {
-                    video.play();
+                    const playPromise = video.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            // Playback started successfully!
+                            console.log("Playback started.");
+                        }).catch(error => {
+                            // Playback failed! This is the 'Aha!' moment.
+                            console.error("Playback failed:", error);
+                            // Show the user the error!
+                            showMessage(`Playback blocked: ${error.name}. Tap again.`);
+                        });
+                    }
                 } else {
                     video.pause();
+                    console.log("Playback paused.");
                 }
             }
-            playPauseBtn.addEventListener('click', togglePlayPause);
-            topPlayPauseBtn.addEventListener('click', togglePlayPause); // Add listener to new button
+            
+            // Add listeners to both buttons
+            playPauseBtn.addEventListener('click', () => {
+                console.log("Bottom play/pause button clicked.");
+                togglePlayPause();
+            });
+            topPlayPauseBtn.addEventListener('click', () => {
+                console.log("Top play/pause button clicked.");
+                togglePlayPause();
+            });
 
             // --- Control: Fullscreen ---
             fullscreenBtn.addEventListener('click', () => {
@@ -309,10 +323,10 @@
             
             
             // --- REFACTORED: Interaction Handlers on the Overlay ---
-            // We now use CLICK for taps, and TOUCH events for custom swipes.
-
-            // 1. Handle Click (for Taps) - This is the fix for Request 1
+            
+            // 1. Handle Click (for Taps)
             tapOverlay.addEventListener('click', (e) => {
+                console.log("Tap overlay clicked. isSwiping:", isSwiping);
                 // If the 'isSwiping' flag was set by touch events,
                 // don't register this 'click' event.
                 if (isSwiping) {
@@ -324,11 +338,14 @@
                 const videoWidth = rect.width;
 
                 if (tapX < videoWidth * 0.4) {
+                    console.log("Frame step backward.");
                     frameStep(-1);
                 } else if (tapX > videoWidth * 0.6) {
+                    console.log("Frame step forward.");
                     frameStep(1);
                 } else {
                     // This is the tap-to-play/pause
+                    console.log("Center tap for play/pause.");
                     togglePlayPause();
                 }
             });
@@ -350,7 +367,6 @@
                 let dy = Math.abs(moveY - touchstartY);
 
                 // If moved more than the threshold, it's a swipe.
-                // This prevents the 'click' event from firing on 'touchend'.
                 if (dx > swipeMoveThreshold || dy > swipeMoveThreshold) {
                     isSwiping = true;
                 }
@@ -374,12 +390,6 @@
                         }
                     }
                 }
-                
-                // Note: We reset 'isSwiping' in the 'touchstart' event
-                // to ensure it's fresh for each new interaction.
-                // Or we can reset it here, which is safer.
-                // isSwiping = false; 
-                // Actually, 'touchstart' is better.
             });
 
 
@@ -425,15 +435,41 @@
     </script>
 
     <script>
-        // register service worker
+        // --- CRITICAL CHANGE: PWA CACHE BUSTING SCRIPT ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js')
-                .then((reg) => {
-                console.log('Service worker registered.', reg);
-                })
-                .catch((err) => {
-                console.error('Service worker registration failed:', err);
+                navigator.serviceWorker.register('sw.js')
+                    .then((reg) => {
+                        console.log('Service worker registered.', reg);
+
+                        // Check if a new worker is waiting
+                        if (reg.waiting) {
+                            console.log('New service worker waiting. Activating...');
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            // Don't reload here, wait for the controller change
+                        }
+
+                        // Listen for new worker installation
+                        reg.addEventListener('updatefound', () => {
+                            console.log('New service worker update found.');
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('New service worker installed. Forcing activation.');
+                                    // Send skipWaiting message to the new worker
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch((err) => {
+                        console.error('Service worker registration failed:', err);
+                    });
+
+                // Listen for when the new worker has taken control
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('Service worker has changed. Reloading page...');
+                    window.location.reload();
                 });
             });
         }
