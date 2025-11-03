@@ -283,6 +283,28 @@
 
             // --- NEW: Interaction Handlers on the Overlay ---
 
+           
+            // 2. Handle Touch Start (to detect swipes)
+            tapOverlay.addEventListener('touchstart', (e) => {
+                touchstartX = e.touches[0].clientX;
+                touchstartY = e.touches[0].clientY;
+                isSwiping = false; // Reset on new touch
+            }, { passive: true }); // Use passive for performance
+
+            // 3. Handle Touch Move (to flag a swipe)
+            tapOverlay.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 0) return;
+                let moveX = e.touches[0].clientX;
+                let moveY = e.touches[0].clientY;
+                let dx = Math.abs(moveX - touchstartX);
+                let dy = Math.abs(moveY - touchstartY);
+
+                // If moved more than 10px in any direction, it's a swipe
+                if (dx > 10 || dy > 10) {
+                    isSwiping = true;
+                }
+            }, { passive: true });
+
             // 4. Handle Touch End (for both Tap and Swipe-to-Exit)
             tapOverlay.addEventListener('touchend', (e) => {
                 // Check for swipe-to-exit-fullscreen first
@@ -323,52 +345,6 @@
                 
                 // Reset isSwiping flag for the next interaction
                 isSwiping = false;
-            });
-
-            // 2. Handle Touch Start (to detect swipes)
-            tapOverlay.addEventListener('touchstart', (e) => {
-                touchstartX = e.touches[0].clientX;
-                touchstartY = e.touches[0].clientY;
-                isSwiping = false; // Reset on new touch
-            }, { passive: true }); // Use passive for performance
-
-            // 3. Handle Touch Move (to flag a swipe)
-            tapOverlay.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 0) return;
-                let moveX = e.touches[0].clientX;
-                let moveY = e.touches[0].clientY;
-                let dx = Math.abs(moveX - touchstartX);
-                let dy = Math.abs(moveY - touchstartY);
-
-                // If moved more than 10px in any direction, it's a swipe
-                if (dx > 10 || dy > 10) {
-                    isSwiping = true;
-                }
-            }, { passive: true });
-
-            // 4. Handle Touch End (to check for swipe-to-exit)
-            tapOverlay.addEventListener('touchend', (e) => {
-                // Only check for swipe-to-exit if we are in fullscreen
-                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                    return;
-                }
-
-                if (isSwiping) {
-                    let touchendX = e.changedTouches[0].clientX;
-                    let touchendY = e.changedTouches[0].clientY;
-                    let dy = touchendY - touchstartY;
-                    let dx = touchendX - touchstartX;
-
-                    // Check for a clear *downward* swipe
-                    if (dy > swipeThreshold && Math.abs(dx) < swipeRestraint) {
-                        if (document.exitFullscreen) {
-                            document.exitFullscreen();
-                        } else if (document.webkitExitFullscreen) { /* Safari */
-                            document.webkitExitFullscreen();
-                        }
-                    }
-                }
-                // 'isSwiping' will be checked by the 'click' event handler
             });
 
             // --- Video Event Listeners for UI Updates ---
