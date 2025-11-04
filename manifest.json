@@ -1,5 +1,5 @@
 {
-  "name": "Frame By Frame Video Editor v2",
+  "name": "Frame By Frame Video Editor v0.1",
   "short_name": "Video Editor",
   "description": "A simple photo editor web app.",
   "start_url": ".",
@@ -20,4 +20,5 @@
       "purpose": "maskable"
     }
   ]
+
 }
