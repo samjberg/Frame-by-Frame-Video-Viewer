@@ -1,0 +1,95 @@
+/* Custom styles */
+html, body {
+    height: 100vh; /* Use 100vh for full viewport height */
+    width: 100vw;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: #111827; /* Tailwind gray-900 */
+    color: #f3f4f6; /* Tailwind gray-100 */
+    overflow: hidden; /* Prevent scrolling */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Style for the custom control bar */
+.controls-bar {
+    flex-shrink: 0; /* Prevent control bar from shrinking */
+    padding: 0.75rem; /* Matches Tailwind p-3 */
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.controls-bar input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: #374151; /* gray-700 */
+    outline: none;
+}
+
+.controls-bar input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    background: #6366f1; /* indigo-500 */
+    cursor: pointer;
+    border: none;
+}
+
+.controls-bar input[type="range"]::-moz-range-thumb {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    background: #6366f1; /* indigo-500 */
+    cursor: pointer;
+    border: none;
+}
+
+/* Custom styles for select dropdown to match dark theme */
+select.dark-select {
+    background-color: #374151; /* gray-700 */
+    border: 1px solid #4b5563; /* gray-600 */
+    color: #f3f4f6; /* gray-100 */
+    border-radius: 0.375rem; /* md */
+}
+
+/* Base video styling */
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: #000;
+}
+
+/* Styling for the file upload button */
+.file-upload-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem; /* 12px 24px */
+    background-color: #4f46e5; /* indigo-600 */
+    color: white;
+    font-weight: 600; /* semibold */
+    border-radius: 0.5rem; /* lg */
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+.file-upload-label:hover {
+    background-color: #4338ca; /* indigo-700 */
+}
+
+/* This ensures the player screen takes full height */
+#player-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* The overlay must be explicitly sized to cover the video */
+#tap-overlay {
+    cursor: pointer;
+}
