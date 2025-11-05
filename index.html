@@ -7,9 +7,105 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#111827">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Custom styles */
+        html, body {
+            height: 100vh; /* Use 100vh for full viewport height */
+            width: 100vw;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Tailwind gray-900 */
+            color: #f3f4f6; /* Tailwind gray-100 */
+            overflow: hidden; /* Prevent scrolling */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Style for the custom control bar */
+        .controls-bar {
+            flex-shrink: 0; /* Prevent control bar from shrinking */
+            padding: 0.75rem; /* Matches Tailwind p-3 */
+            padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+        }
+
+        .controls-bar input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 0.5rem;
+            border-radius: 9999px;
+            background: #374151; /* gray-700 */
+            outline: none;
+        }
+
+        .controls-bar input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 9999px;
+            background: #6366f1; /* indigo-500 */
+            cursor: pointer;
+            border: none;
+        }
+
+        .controls-bar input[type="range"]::-moz-range-thumb {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 9999px;
+            background: #6366f1; /* indigo-500 */
+            cursor: pointer;
+            border: none;
+        }
+        
+        /* Custom styles for select dropdown to match dark theme */
+        select.dark-select {
+            background-color: #374151; /* gray-700 */
+            border: 1px solid #4b5563; /* gray-600 */
+            color: #f3f4f6; /* gray-100 */
+            border-radius: 0.375rem; /* md */
+        }
+        
+        /* Base video styling */
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+
+        /* Styling for the file upload button */
+        .file-upload-label {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            background-color: #4f46e5; /* indigo-600 */
+            color: white;
+            font-weight: 600; /* semibold */
+            border-radius: 0.5rem; /* lg */
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .file-upload-label:hover {
+            background-color: #4338ca; /* indigo-700 */
+        }
+
+        /* This ensures the player screen takes full height */
+        #player-screen {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* The overlay must be explicitly sized to cover the video */
+        #tap-overlay {
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body class="p-0 sm:p-4">
 
@@ -99,6 +195,394 @@
         </div>
     </div>
 
-    <script src="main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Screen elements
+            const uploadScreen = document.getElementById('upload-screen');
+            const playerScreen = document.getElementById('player-screen');
+            const backBtn = document.getElementById('back-btn');
+
+            // Player elements
+            const videoUpload = document.getElementById('video-upload');
+            const videoWrapper = document.getElementById('video-wrapper');
+            const video = document.getElementById('video');
+            const tapOverlay = document.getElementById('tap-overlay'); // The overlay
+            
+            // Control elements
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const playPauseIcon = document.getElementById('play-pause-icon');
+            const topFullscreenBtn = document.getElementById('top-fullscreen-btn');
+            const topFullscreenIcon = document.getElementById('top-fullscreen-icon');
+
+            const timeDisplay = document.getElementById('time-display');
+            const playbackSpeed = document.getElementById('playback-speed');
+            const fpsInput = document.getElementById('fps-input');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const fullscreenIcon = document.getElementById('fullscreen-icon');
+            const progressBar = document.getElementById('progress-bar');
+            const messageBox = document.getElementById('message-box');
+
+            let secondsPerFrame = 1 / 30;
+            let isSeeking = false;
+            let isScrubbing = false;
+            let currentVideoURL = null;
+
+            // --- Swipe/Tap detection variables ---
+            let touchstartX = 0;
+            let touchstartY = 0;
+            let isSwiping = false; // Flag to track if a swipe is in progress
+            const swipeThreshold = 100; // Min pixels for a vertical swipe
+            const swipeRestraint = 50; // Max horizontal pixels allowed during vertical swipe
+            const swipeMoveThreshold = 10; // Min pixels to move before it's considered a swipe
+
+            // --- Show Error Message ---
+            function showMessage(message, isError = true) {
+                console.log(isError ? "Error:" : "Message:", message); // Also log to console
+                messageBox.textContent = message;
+                messageBox.className = isError 
+                    ? 'p-3 rounded-md bg-red-600 text-white text-center m-3 block' 
+                    : 'p-3 rounded-md bg-green-600 text-white text-center m-3 block';
+                messageBox.classList.remove('hidden');
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 4000); // Increased time to 4 seconds
+            }
+
+            // --- UI Navigation ---
+            videoUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    if (currentVideoURL) {
+                        URL.revokeObjectURL(currentVideoURL);
+                    }
+                    currentVideoURL = URL.createObjectURL(file);
+                    video.src = currentVideoURL;
+                    video.load();
+                    progressBar.value = 0;
+                    progressBar.disabled = true;
+                    isSeeking = false;
+                    isScrubbing = false;
+                    uploadScreen.classList.add('hidden');
+                    playerScreen.classList.remove('hidden');
+                }
+            });
+
+            backBtn.addEventListener('click', () => {
+                video.pause();
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                }
+                if (currentVideoURL) {
+                    URL.revokeObjectURL(currentVideoURL);
+                    currentVideoURL = null;
+                }
+                video.src = '';
+                video.load();
+                videoUpload.value = null;
+                timeDisplay.textContent = "00:00.000 / 00:00.000";
+                playPauseIcon.classList.remove('ph-pause');
+                playPauseIcon.classList.add('ph-play');
+                progressBar.value = 0;
+                progressBar.disabled = true;
+                isSeeking = false;
+                isScrubbing = false;
+                playerScreen.classList.add('hidden');
+                uploadScreen.classList.remove('hidden');
+            });
+
+            // --- Video Loaded Metadata ---
+            video.addEventListener('loadedmetadata', () => {
+                updateTimeDisplay();
+                updateSecondsPerFrame();
+                progressBar.disabled = false;
+                progressBar.value = 0;
+                updateProgressBar();
+            });
+
+            // --- CRITICAL CHANGE: Control: Play/Pause with Error Catching ---
+            function togglePlayPause() {
+                console.log("togglePlayPause() called. Video paused:", video.paused);
+                if (video.paused || video.ended) {
+                    const playPromise = video.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            // Playback started successfully!
+                            console.log("Playback started.");
+                        }).catch(error => {
+                            // Playback failed! This is the 'Aha!' moment.
+                            console.error("Playback failed:", error);
+                            // Show the user the error!
+                            showMessage(`Playback blocked: ${error.name}. Tap again.`);
+                        });
+                    }
+                } else {
+                    video.pause();
+                    console.log("Playback paused.");
+                }
+            }
+            
+            // Add listeners to both buttons
+            playPauseBtn.addEventListener('click', () => {
+                console.log("Bottom play/pause button clicked.");
+                togglePlayPause();
+            });
+            // --- Control: Fullscreen ---
+            function toggleFullscreen() {
+                const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+                if (fullscreenElement) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                } else {
+                    if (videoWrapper.requestFullscreen) {
+                        videoWrapper.requestFullscreen();
+                    } else if (videoWrapper.webkitRequestFullscreen) { /* Safari */
+                        videoWrapper.webkitRequestFullscreen();
+                    } else if (videoWrapper.msRequestFullscreen) { /* IE11 */
+                        videoWrapper.msRequestFullscreen();
+                    }
+                }
+            }
+
+            function updateFullscreenIcons(isFullscreen) {
+                if (isFullscreen) {
+                    topFullscreenIcon.classList.remove('ph-arrows-out');
+                    topFullscreenIcon.classList.add('ph-arrows-in');
+                    fullscreenIcon.classList.remove('ph-arrows-out');
+                    fullscreenIcon.classList.add('ph-arrows-in');
+                } else {
+                    topFullscreenIcon.classList.remove('ph-arrows-in');
+                    topFullscreenIcon.classList.add('ph-arrows-out');
+                    fullscreenIcon.classList.remove('ph-arrows-in');
+                    fullscreenIcon.classList.add('ph-arrows-out');
+                }
+            }
+
+            function handleFullscreenChange() {
+                const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+                updateFullscreenIcons(isFullscreen);
+            }
+
+            topFullscreenBtn.addEventListener('click', toggleFullscreen);
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+            // Ensure icons start in non-fullscreen state
+            updateFullscreenIcons(false);
+
+            // --- Control: Scrubbing ---
+            progressBar.addEventListener('input', (event) => {
+                if (!video.duration) return;
+                isSeeking = true;
+                isScrubbing = true;
+                const ratio = Number(event.target.value) / Number(event.target.max);
+                const newTime = ratio * video.duration;
+                video.currentTime = newTime;
+                updateTimeDisplay();
+            });
+
+            progressBar.addEventListener('change', () => {
+                isScrubbing = false;
+                isSeeking = false;
+            });
+
+            // --- Control: Playback Speed ---
+            playbackSpeed.addEventListener('change', () => {
+                video.playbackRate = parseFloat(playbackSpeed.value);
+            });
+
+            // --- Control: FPS Input ---
+            function updateSecondsPerFrame() {
+                const fps = parseFloat(fpsInput.value);
+                if (fps > 0) {
+                    secondsPerFrame = 1 / fps;
+                } else {
+                    showMessage("FPS must be a positive number.");
+                    fpsInput.value = 30;
+                    secondsPerFrame = 1 / 30;
+                }
+            }
+            fpsInput.addEventListener('change', updateSecondsPerFrame);
+
+            // --- Control: Frame Step ---
+            function frameStep(direction) {
+                if (!video.duration) return;
+                video.pause();
+                let newTime = video.currentTime + (direction * secondsPerFrame);
+                if (newTime < 0) newTime = 0;
+                if (newTime > video.duration) newTime = video.duration;
+                video.currentTime = newTime;
+                updateTimeDisplay();
+                updateProgressBar();
+            }
+            
+            
+            // --- REFACTORED: Interaction Handlers on the Overlay ---
+            
+            // 1. Handle Click (for Taps)
+            tapOverlay.addEventListener('click', (e) => {
+                console.log("Tap overlay clicked. isSwiping:", isSwiping);
+                // If the 'isSwiping' flag was set by touch events,
+                // don't register this 'click' event.
+                if (isSwiping) {
+                    return;
+                }
+
+                const rect = tapOverlay.getBoundingClientRect();
+                const tapX = e.clientX - rect.left; // Use clientX for click events
+                const videoWidth = rect.width;
+
+                if (tapX < videoWidth * 0.4) {
+                    console.log("Frame step backward.");
+                    frameStep(-1);
+                } else if (tapX > videoWidth * 0.6) {
+                    console.log("Frame step forward.");
+                    frameStep(1);
+                } else {
+                    // This is the tap-to-play/pause
+                    console.log("Center tap for play/pause.");
+                    togglePlayPause();
+                }
+            });
+
+            // 2. Handle Touch Start (to detect swipes)
+            tapOverlay.addEventListener('touchstart', (e) => {
+                touchstartX = e.touches[0].clientX;
+                touchstartY = e.touches[0].clientY;
+                isSwiping = false; // Reset on new touch
+            }, { passive: true }); // Use passive for performance
+
+            // 3. Handle Touch Move (to flag a swipe)
+            tapOverlay.addEventListener('touchmove', (e) => {
+                if (isSwiping || e.touches.length === 0) return; // Already flagged or no touches
+                
+                let moveX = e.touches[0].clientX;
+                let moveY = e.touches[0].clientY;
+                let dx = Math.abs(moveX - touchstartX);
+                let dy = Math.abs(moveY - touchstartY);
+
+                // If moved more than the threshold, it's a swipe.
+                if (dx > swipeMoveThreshold || dy > swipeMoveThreshold) {
+                    isSwiping = true;
+                }
+            }, { passive: true });
+
+            // 4. Handle Touch End (NOW ONLY FOR SWIPE-TO-EXIT)
+            tapOverlay.addEventListener('touchend', (e) => {
+                // Check for swipe-to-exit-fullscreen
+                if (isSwiping && (document.fullscreenElement || document.webkitFullscreenElement)) {
+                    let touchendX = e.changedTouches[0].clientX;
+                    let touchendY = e.changedTouches[0].clientY;
+                    let dy = touchendY - touchstartY;
+                    let dx = touchendX - touchstartX;
+
+                    // Check for a clear *downward* swipe
+                    if (dy > swipeThreshold && Math.abs(dx) < swipeRestraint) {
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) { /* Safari */
+                            document.webkitExitFullscreen();
+                        }
+                    }
+                }
+            });
+
+
+            // --- Video Event Listeners for UI Updates ---
+            video.addEventListener('play', () => {
+                // Update play/pause icon
+                playPauseIcon.classList.remove('ph-play');
+                playPauseIcon.classList.add('ph-pause');
+            });
+            video.addEventListener('pause', () => {
+                // Update play/pause icon
+                playPauseIcon.classList.remove('ph-pause');
+                playPauseIcon.classList.add('ph-play');
+            });
+            video.addEventListener('timeupdate', () => {
+                if (!isSeeking) {
+                    updateTimeDisplay();
+                    updateProgressBar();
+                }
+            });
+            video.addEventListener('seeking', () => { isSeeking = true; });
+            video.addEventListener('seeked', () => {
+                isSeeking = false;
+                updateTimeDisplay();
+                updateProgressBar();
+            });
+
+            // --- Utility: Format Time ---
+            function formatTime(seconds) {
+                const min = Math.floor(seconds / 60);
+                const sec = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds - Math.floor(seconds)) * 1000);
+                return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+            }
+
+            // --- Utility: Update Time Display ---
+            function updateTimeDisplay() {
+                const current = formatTime(video.currentTime || 0);
+                const duration = formatTime(video.duration || 0);
+                timeDisplay.textContent = `${current} / ${duration}`;
+            }
+
+            function updateProgressBar() {
+                if (!video.duration || isScrubbing) return;
+                const ratio = video.currentTime / video.duration;
+                const clamped = Math.min(Math.max(ratio, 0), 1);
+                progressBar.value = Math.round(clamped * progressBar.max);
+            }
+        });
+    </script>
+
+    <script>
+        // --- CRITICAL CHANGE: PWA CACHE BUSTING SCRIPT ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then((reg) => {
+                        console.log('Service worker registered.', reg);
+
+                        // Check if a new worker is waiting
+                        if (reg.waiting) {
+                            console.log('New service worker waiting. Activating...');
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            // Don't reload here, wait for the controller change
+                        }
+
+                        // Listen for new worker installation
+                        reg.addEventListener('updatefound', () => {
+                            console.log('New service worker update found.');
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('New service worker installed. Forcing activation.');
+                                    // Send skipWaiting message to the new worker
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch((err) => {
+                        console.error('Service worker registration failed:', err);
+                    });
+
+                // Listen for when the new worker has taken control
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('Service worker has changed. Reloading page...');
+                    window.location.reload();
+                });
+            });
+        }
+    </script>
+
 </body>
 </html>
